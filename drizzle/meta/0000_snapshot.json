@@ -1,0 +1,64 @@
+{
+  "id": "aa139b35-987e-4f28-a020-6c1423166f7f",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.flatmates": {
+      "name": "flatmates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_busy": {
+          "name": "is_busy",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "streak": {
+          "name": "streak",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_cleaned_date": {
+          "name": "last_cleaned_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "busy_until": {
+          "name": "busy_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

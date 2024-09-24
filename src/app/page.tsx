@@ -1,101 +1,306 @@
-import Image from "next/image";
+"use client";
+import React, { useState, useEffect, useMemo } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CheckCircle2, UserMinus } from "lucide-react";
+import { format, addWeeks, isBefore } from "date-fns";
 
-export default function Home() {
+interface Flatmate {
+  id: string;
+  identifier: string;
+  isBusy: boolean;
+  streak: number;
+  lastCleanedDate: Date | null;
+  busyUntil: Date | null;
+}
+
+const HomePage = () => {
+  const [date, setDate] = useState<Date>(new Date());
+  const [flatmates, setFlatmates] = useState<Flatmate[]>([]);
+  const [newFlatmate, setNewFlatmate] = useState("");
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pin, setPin] = useState("");
+  const [actionToPerform, setActionToPerform] = useState<() => void>(() => {});
+
+  useEffect(() => {
+    fetchFlatmates();
+  }, []);
+
+  const fetchFlatmates = async () => {
+    const response = await fetch("/api/flatmates");
+    const data = await response.json();
+    setFlatmates(data);
+  };
+
+  const requirePin = (action: () => void) => {
+    setActionToPerform(() => action);
+    setShowPinDialog(true);
+  };
+
+  const handlePinVerified = () => {
+    if (pin === "1234") {
+      setShowPinDialog(false);
+      actionToPerform();
+      setPin("");
+    } else {
+      alert("Incorrect PIN");
+    }
+  };
+
+  const addFlatmate = async () => {
+    if (newFlatmate.trim() !== "") {
+      const response = await fetch("/api/flatmates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: newFlatmate.trim() }),
+      });
+      const newFlatmateData = await response.json();
+      setFlatmates([...flatmates, newFlatmateData]);
+      setNewFlatmate("");
+    }
+  };
+
+  const removeFlatmate = async (id: number) => {
+    await fetch("/api/flatmates", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setFlatmates(flatmates.filter((f) => f.id !== id));
+  };
+
+  const toggleBusy = async (id: number) => {
+    const flatmate = flatmates.find((f) => f.id === id);
+    if (flatmate) {
+      const busyUntil = flatmate.isBusy ? null : addWeeks(new Date(), 1);
+      const response = await fetch("/api/flatmates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isBusy: !flatmate.isBusy, busyUntil }),
+      });
+      const updatedFlatmate = await response.json();
+      setFlatmates(flatmates.map((f) => (f.id === id ? updatedFlatmate : f)));
+    }
+  };
+
+  const confirmCleaning = async (id: number) => {
+    const flatmate = flatmates.find((f) => f.id === id);
+    if (flatmate) {
+      const response = await fetch("/api/flatmates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          streak: flatmate.streak + 1,
+          lastCleanedDate: new Date(),
+        }),
+      });
+      const updatedFlatmate = await response.json();
+      setFlatmates(flatmates.map((f) => (f.id === id ? updatedFlatmate : f)));
+    }
+  };
+
+  const getTrashDutyPerson = (flatmates: Flatmate[]): string => {
+    const availableFlatmates = flatmates.filter((f) => !f.isBusy);
+    if (availableFlatmates.length === 0) return "No available flatmates";
+
+    const sortedFlatmates = [...availableFlatmates].sort((a, b) => {
+      if (a.lastCleanedDate && b.lastCleanedDate) {
+        return a.lastCleanedDate.getTime() - b.lastCleanedDate.getTime();
+      }
+      if (a.lastCleanedDate) return 1;
+      if (b.lastCleanedDate) return -1;
+      return 0;
+    });
+
+    return sortedFlatmates[0].identifier;
+  };
+
+  const getUpcomingDuties = (
+    flatmates: Flatmate[],
+    startDate: Date,
+    weeks: number
+  ): { date: Date; flatmate: string }[] => {
+    const duties = [];
+    let currentDate = new Date(startDate);
+    const endDate = addWeeks(startDate, weeks);
+    const availableFlatmates = flatmates.filter((f) => !f.isBusy);
+
+    if (availableFlatmates.length === 0) {
+      return Array(weeks).fill({
+        date: new Date(),
+        flatmate: "No available flatmates",
+      });
+    }
+
+    let flatmateIndex = 0;
+    while (isBefore(currentDate, endDate)) {
+      const selectedFlatmate = availableFlatmates[flatmateIndex];
+      duties.push({
+        date: new Date(currentDate),
+        flatmate: selectedFlatmate.identifier,
+      });
+
+      // Move to the next flatmate, wrapping around if we reach the end
+      flatmateIndex = (flatmateIndex + 1) % availableFlatmates.length;
+
+      currentDate = addWeeks(currentDate, 1);
+    }
+
+    return duties;
+  };
+
+  const upcomingDuties = useMemo(
+    () => getUpcomingDuties(flatmates, new Date(), 4),
+    [flatmates]
+  );
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Weekly Trash Duty Scheduler</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Calendar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={(newDate) => newDate && setDate(newDate)}
+              className="rounded-md border"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>This Weeks Trash Duty</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg">{getTrashDutyPerson(flatmates)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Workload Distribution</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <h3 className="font-semibold mb-2">Upcoming Duties</h3>
+          <ul>
+            {upcomingDuties.map((duty, index) => (
+              <li key={index}>
+                {format(duty.date, "dd/MM/yyyy")}: {duty.flatmate}
+              </li>
+            ))}
+          </ul>
+          <h3 className="font-semibold mt-4 mb-2">Cleaning Streaks</h3>
+          <ul>
+            {flatmates.map((flatmate) => (
+              <li key={flatmate.id}>
+                {flatmate.identifier}: {flatmate.streak}{" "}
+                {flatmate.streak === 1 ? "time" : "times"}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Manage Flatmates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-2 mb-4">
+            <Input
+              type="text"
+              placeholder="Enter flatmate name"
+              value={newFlatmate}
+              onChange={(e) => setNewFlatmate(e.target.value)}
+            />
+            <Button onClick={() => requirePin(addFlatmate)}>
+              Add Flatmate
+            </Button>
+          </div>
+          <ul className="space-y-2">
+            {flatmates.map((flatmate) => (
+              <li
+                key={flatmate.id}
+                className="flex items-center justify-between bg-gray-100 p-2 rounded"
+              >
+                <div>
+                  <span>{flatmate.identifier}</span>
+                  <Badge variant="secondary" className="ml-2">
+                    Streak: {flatmate.streak}
+                  </Badge>
+                  {flatmate.busyUntil && (
+                    <Badge variant="outline" className="ml-2">
+                      Busy until: {format(flatmate.busyUntil, "dd/MM/yyyy")}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={flatmate.isBusy}
+                    onCheckedChange={() =>
+                      requirePin(() => toggleBusy(flatmate.id))
+                    }
+                  />
+                  <Label htmlFor={`busy-${flatmate.id}`}>Busy</Label>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() =>
+                      requirePin(() => confirmCleaning(flatmate.id))
+                    }
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() =>
+                      requirePin(() => removeFlatmate(flatmate.id))
+                    }
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter PIN</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="Enter PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <Button onClick={handlePinVerified}>Verify</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};
+
+export default HomePage;
