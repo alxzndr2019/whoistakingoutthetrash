@@ -1,5 +1,5 @@
 {
-  "id": "aa139b35-987e-4f28-a020-6c1423166f7f",
+  "id": "d59d92cd-8aa1-4847-b423-b124d9f581a4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -29,7 +29,7 @@
         },
         "streak": {
           "name": "streak",
-          "type": "serial",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 0
